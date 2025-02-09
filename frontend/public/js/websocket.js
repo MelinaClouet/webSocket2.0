@@ -1,4 +1,4 @@
-import { initMap, addMarker } from './map.js';
+import { initMap, addMarker,updateMarker } from './map.js';
 const socket = new WebSocket("wss://privacy-a-compensation-terrain.trycloudflare.com     ");
 let usersList = []; // Liste des utilisateurs connectés
 import {onAnswerReceived,onOfferReceived,onIceCandidateReceived, initWebRTC} from './webrtc.js';
@@ -23,6 +23,16 @@ socket.onmessage = (event) => {
     }
 
     switch (data.type){
+        case 'update-user':
+            // Mettez à jour la position de l'utilisateur dans votre carte
+            const { name,email, latitude, longitude } = data;
+            if (markers[email]) {
+                updateMarker(name,email, latitude, longitude);
+            } else {
+                console.log('Marqueur introuvable pour cet utilisateur.');
+            }
+            break;
+
         case 'update-users':
             data.users.forEach((user) => {
                 addMarker(user.latitude, user.longitude, user.name, user.email);

@@ -40,11 +40,11 @@ wss.on("connection", async (ws) => {
             ws.email = data.email; // Associer l'email de l'utilisateur à la connexion WebSocket
             if (data.type === 'offer') {
                 // Handle offer
-                handleOffer(ws, parsedMessage);
+                handleOffer(ws, data);
             }
             if (data.type === 'answer') {
                 // Handle answer
-                handleAnswer(ws, parsedMessage);
+                handleAnswer(ws, data);
             }
             if (data.type === "add-user") {
                 console.log(`✅ Tentative d'ajout ou mise à jour de l'utilisateur : ${data.email}`);
@@ -97,6 +97,30 @@ wss.on("connection", async (ws) => {
                         message: "Erreur lors de l'ajout ou de la mise à jour de l'utilisateur.",
                     }));
                 }
+            }
+            else if (data.type === "update-user") {
+
+                console.log(`🔄 L'utilisateur existe déjà. Mise à jour des coordonnées pour ${data.email}`);
+
+                // Mise à jour des coordonnées de l'utilisateur
+                await axios.put(`${API_URL}/${data.email}`, {
+                    name: data.name,
+                    email: data.email,
+                    latitude: data.latitude,
+                    longitude: data.longitude,
+                    isConnected: true,
+                });
+                const updatedUsersResponse = await axios.get(`${API_URL}/connect`);
+                const updatedUsers = updatedUsersResponse.data;
+
+                console.log("✅ Liste mise à jour :", updatedUsers);
+
+                // Diffuser les utilisateurs mis à jour à tous les clients
+                broadcast({
+                    type: "update-users",
+                    users: updatedUsers,
+                });
+
             }
             else if (data.type === "sdp-offer") {
                 // Gérer l'offre SDP reçue

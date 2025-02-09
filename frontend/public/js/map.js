@@ -39,3 +39,16 @@ export function addMarker(latitude, longitude, label, email) {
 
     console.log("Marqueur ajouté :", { latitude, longitude, label, email });
 }
+
+export const updateMarker = (email, lat, lng) => {
+    const marker = markers[email]; // Récupère le marqueur par email
+
+    if (marker) {
+        // Met à jour la position du marqueur
+        marker.setPosition(new google.maps.LatLng(lat, lng));
+
+        console.log(`Marqueur mis à jour pour ${email} à la position: ${lat}, ${lng}`);
+    } else {
+        console.log(`Marqueur pour ${email} non trouvé.`);
+    }
+};
