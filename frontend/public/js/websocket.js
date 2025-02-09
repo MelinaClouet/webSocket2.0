@@ -1,8 +1,13 @@
 import { initMap, addMarker } from './map.js';
-const socket = new WebSocket("ws://localhost:8080");
+const socket = new WebSocket("wss://privacy-a-compensation-terrain.trycloudflare.com     ");
+let usersList = []; // Liste des utilisateurs connectés
+import {onAnswerReceived,onOfferReceived,onIceCandidateReceived, initWebRTC} from './webrtc.js';
+
+
 
 socket.onopen = () => {
     console.log("✅ Connexion WebSocket réussie");
+    initWebRTC();
 };
 
 socket.onmessage = (event) => {
@@ -17,11 +22,29 @@ socket.onmessage = (event) => {
         return;
     }
 
+    switch (data.type){
+        case 'update-users':
+            data.users.forEach((user) => {
+                addMarker(user.latitude, user.longitude, user.name, user.email);
+            });
+        case 'sdp-offer':
+            onOfferReceived(data.offer);
+            break;
+        case 'sdp-answer':
+            onAnswerReceived(data.answer);
+            break;
+        case 'new-ice-candidate':
+            onIceCandidateReceived(data.candidate);
+            break;
+
+        default:
+            console.warn("⚠️ Type de message WebSocket inconnu :", data);
+
+    }
+
     if (data.type === 'update-users') {
         console.log("👥 Mise à jour de la liste des utilisateurs :", data.users);
-        data.users.forEach((user) => {
-            addMarker(user.latitude, user.longitude, user.name, user.email);
-        });
+
     }
 };
 
@@ -34,14 +57,15 @@ socket.onclose = () => {
 };
 
 // Fonction pour envoyer un message
-export function sendWebSocketMessage(data) {
-    if (socket.readyState === WebSocket.OPEN) {
-        console.log("📤 Envoi de données via WebSocket :", data);
-        socket.send(JSON.stringify(data));
+export function sendWebSocketMessage(message) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(message));
     } else {
-        console.error("❌ Le WebSocket n’est pas connecté.");
+        console.error("❌ WebSocket n'est pas connecté ou est fermé.");
     }
 }
+
+
 
 // Fonction pour écouter les messages sans écraser onmessage
 export function onWebSocketMessage(callback) {

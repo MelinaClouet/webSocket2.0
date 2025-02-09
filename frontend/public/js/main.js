@@ -60,7 +60,7 @@ loginForm.addEventListener('submit', (e) => {
 });
 
 // Gestion des messages WebSocket
-onWebSocketMessage((data) => {
+/*onWebSocketMessage((data) => {
     if (data.type === 'users-list') {
         data.users.forEach((user) => {
             if (!markers[user.email]) {
@@ -73,4 +73,4 @@ onWebSocketMessage((data) => {
     if (data.type === 'error') {
         console.error('Erreur reçue du serveur WebSocket :', data.message);
     }
-});
+});*/
