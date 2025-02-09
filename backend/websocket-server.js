@@ -26,30 +26,64 @@ wss.on("connection", async (ws) => {
     ws.on("message", async (message) => {
         console.log("📩 Message reçu :", message);
         try {
+
             const data = JSON.parse(message);
-
+            ws.email = data.email;
             if (data.type === "add-user") {
-                console.log(`✅ Nouvel utilisateur ajouté : ${data.name}`);
+                console.log(`✅ Tentative d'ajout ou mise à jour de l'utilisateur : ${data.email}`);
 
-                await axios.post(API_URL, {
-                    name: data.name,
-                    email: data.email,
-                    latitude: data.latitude,
-                    longitude: data.longitude,
-                    isConnected: true,
-                });
+                try {
+                    // Vérifier si l'utilisateur existe déjà avec un GET sur l'email
+                    const userResponse = await axios.get(`${API_URL}/email/${data.email}`);
+                    const existingUser = userResponse.data;
 
-                const usersResponse = await axios.get(API_URL + "/connect");
-                const updatedUsers = usersResponse.data;
+                    if (existingUser) {
+                        console.log(`🔄 L'utilisateur existe déjà. Mise à jour des coordonnées pour ${data.email}`);
 
-                console.log("✅ Liste mise à jour :", updatedUsers);
+                        // Mise à jour des coordonnées avec un PUT
+                        await axios.put(`${API_URL}/${data.email}`, {
+                            name: data.name,
+                            email: data.email,
+                            latitude: data.latitude,
+                            longitude: data.longitude,
+                            isConnected: true,
+                        });
+                    } else {
+                        console.log(`🆕 Nouvel utilisateur détecté. Ajout en base.`);
 
-                console.log("📡 Diffusion des utilisateurs mis à jour...");
-                broadcast({
-                    type: "update-users",
-                    users: updatedUsers,
-                });
-            } else {
+                        // Ajout du nouvel utilisateur avec un POST
+                        await axios.post(API_URL, {
+                            name: data.name,
+                            email: data.email,
+                            latitude: data.latitude,
+                            longitude: data.longitude,
+                            isConnected: true,
+                        });
+                    }
+
+                    // Récupérer la liste mise à jour des utilisateurs
+                    const usersResponse = await axios.get(`${API_URL}/connect`);
+                    const updatedUsers = usersResponse.data;
+
+                    console.log("✅ Liste mise à jour :", updatedUsers);
+
+                    // Diffuser les utilisateurs mis à jour à tous les clients connectés
+                    console.log("📡 Diffusion des utilisateurs mis à jour...");
+                    broadcast({
+                        type: "update-users",
+                        users: updatedUsers,
+                    });
+
+                } catch (error) {
+                    console.error("❌ Erreur lors du traitement de l'utilisateur :", error);
+
+                    ws.send(JSON.stringify({
+                        type: "error",
+                        message: "Erreur lors de l'ajout ou de la mise à jour de l'utilisateur.",
+                    }));
+                }
+            }
+            else {
                 console.log("❌ Type de message inconnu :", data.type);
                 ws.send(JSON.stringify({ type: "error", message: "Type de message non valide." }));
             }
@@ -59,10 +93,38 @@ wss.on("connection", async (ws) => {
         }
     });
 
-    ws.on("close", () => {
+    ws.on("close", async () => {
         console.log("🔴 Client WebSocket déconnecté");
         console.log(`📡 Nombre de clients connectés : ${wss.clients.size}`);
+
+        try {
+            // Récupérer l'email de l'utilisateur déconnecté (tu dois stocker cette info lors de la connexion)
+            const email = ws.email; // Tu devras assigner l'email à ws.email lors de l'ajout
+
+            if (email) {
+                console.log(`🔄 Mise à jour de l'état de connexion pour ${email}`);
+
+                await axios.put(`${API_URL}/disconnect/${email}`, {
+                    isConnected: false,
+                });
+
+                // Récupérer la liste mise à jour des utilisateurs connectés
+                const usersResponse = await axios.get(`${API_URL}/connect`);
+                const updatedUsers = usersResponse.data;
+
+                console.log("📡 Diffusion des utilisateurs mis à jour...");
+                broadcast({
+                    type: "update-users",
+                    users: updatedUsers,
+                });
+            } else {
+                console.warn("⚠ Aucun email stocké pour ce client WebSocket.");
+            }
+        } catch (error) {
+            console.error("❌ Erreur lors de la mise à jour de la déconnexion :", error);
+        }
     });
+
 });
 
 function broadcast(message) {
