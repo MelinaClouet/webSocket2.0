@@ -1,29 +1,37 @@
 const WebSocket = require("ws");
-const axios = require("axios"); // Importer axios pour les appels HTTP
+const axios = require("axios");
 
 const PORT = 8080;
-const API_URL = "http://localhost:4000/api/users"; // URL de l'API REST
+const API_URL = "http://localhost:4000/api/users";
 
 const wss = new WebSocket.Server({ port: PORT });
 
-console.log(`WebSocket Server en cours d'exécution sur ws://localhost:${PORT}`);
+console.log(`✅ WebSocket Server en cours d'exécution sur ws://localhost:${PORT}`);
 
-wss.on("connection", (ws) => {
-    console.log("Nouvelle connexion WebSocket");
+wss.on("connection", async (ws) => {
+    console.log("✅ Nouveau client WebSocket connecté !");
+    console.log(`📡 Nombre de clients connectés : ${wss.clients.size}`);
 
-    // Lorsque le serveur reçoit un message
+    try {
+        const usersResponse = await axios.get(API_URL + "/connect");
+        ws.send(JSON.stringify({
+            type: "update-users",
+            users: usersResponse.data
+        }));
+        console.log("✅ Liste des utilisateurs envoyée au client.");
+    } catch (error) {
+        console.error("❌ Erreur lors de la récupération des utilisateurs :", error);
+    }
+
     ws.on("message", async (message) => {
+        console.log("📩 Message reçu :", message);
         try {
-            // Convertir le message en objet JSON
             const data = JSON.parse(message);
 
-            // Vérifier le type de message
             if (data.type === "add-user") {
-                console.log(`Nouvel utilisateur reçu : ${data.name} (${data.email})`);
-                console.log(`Position : Latitude ${data.latitude}, Longitude ${data.longitude}`);
+                console.log(`✅ Nouvel utilisateur ajouté : ${data.name}`);
 
-                // Envoyer les données à l'API REST
-                const response = await axios.post(API_URL, {
+                await axios.post(API_URL, {
                     name: data.name,
                     email: data.email,
                     latitude: data.latitude,
@@ -31,63 +39,36 @@ wss.on("connection", (ws) => {
                     isConnected: true,
                 });
 
-                console.log("Réponse de l'API :", response.data);
-
-                // Répondre au client WebSocket avec une confirmation
-                ws.send(
-                    JSON.stringify({
-                        type: "success",
-                        message: `Utilisateur ${data.name} ajouté avec succès.`,
-                    })
-                );
-
-                // Récupérer la liste mise à jour des utilisateurs
-                const usersResponse = axios.get(API_URL + "/connected")
-                    .then(response => {
-                        console.log("Réponse du serveur :", response.data);
-                    })
-                    .catch(error => {
-                        console.error("Erreur lors de la connexion :", error);
-                    });
+                const usersResponse = await axios.get(API_URL + "/connect");
                 const updatedUsers = usersResponse.data;
 
-                // Envoyer la liste mise à jour à tous les clients connectés
+                console.log("✅ Liste mise à jour :", updatedUsers);
+
+                console.log("📡 Diffusion des utilisateurs mis à jour...");
                 broadcast({
                     type: "update-users",
                     users: updatedUsers,
                 });
-
-
             } else {
-                console.log("Type de message inconnu :", data.type);
-
-                // Répondre avec une erreur
-                ws.send(
-                    JSON.stringify({
-                        type: "error",
-                        message: "Type de message non valide.",
-                    })
-                );
+                console.log("❌ Type de message inconnu :", data.type);
+                ws.send(JSON.stringify({ type: "error", message: "Type de message non valide." }));
             }
         } catch (error) {
-            console.error("Erreur lors du traitement du message :", error);
-
-            // Répondre avec une erreur en cas de problème
-            ws.send(
-                JSON.stringify({
-                    type: "error",
-                    message: "Erreur lors de l'ajout de l'utilisateur.",
-                })
-            );
+            console.error("❌ Erreur traitement message :", error);
+            ws.send(JSON.stringify({ type: "error", message: "Erreur serveur." }));
         }
     });
 
-    // Lorsque la connexion est fermée
     ws.on("close", () => {
-        console.log("Connexion WebSocket fermée");
+        console.log("🔴 Client WebSocket déconnecté");
+        console.log(`📡 Nombre de clients connectés : ${wss.clients.size}`);
     });
 });
+
 function broadcast(message) {
+    console.log("📡 Envoi à tous les clients connectés :", message);
+    console.log(`📡 Clients actuellement connectés : ${wss.clients.size}`);
+
     wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify(message));

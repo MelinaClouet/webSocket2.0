@@ -48,6 +48,7 @@ loginForm.addEventListener('submit', (e) => {
             name: name,
             latitude: userCoords.lat,
             longitude: userCoords.lng,
+            //longitude:50,
             isConnected:true,
         });
 
